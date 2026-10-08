@@ -12,7 +12,10 @@ function base(kind: string): THREE.BufferGeometry {
   if (g) return g;
   switch (kind) {
     case 'sphere':
-      g = new THREE.SphereGeometry(1, 18, 14);
+      g = new THREE.SphereGeometry(1, 14, 10);
+      break;
+    case 'pebble':
+      g = new RoundedBoxGeometry(1, 1, 1, 3, 0.4);
       break;
     case 'sphereLo':
       g = new THREE.SphereGeometry(1, 10, 8);
@@ -289,23 +292,27 @@ export function buildCreature(m: ModelDef, p: Palette, opts: BuildOpts = {}): Ri
       break;
     }
     case 'golem': {
-      body.add('rbox', p.main, [0, 0.82, 0], [1.0 * b, 0.86 * b, 0.72 * b]);
-      body.add('rbox', p.belly, [0, 0.76, 0.3 * b], [0.6 * b, 0.5 * b, 0.16]);
-      headPos = [0, 0.82 + 0.43 * b + 0.22 * h, 0.12];
-      R = 0.36 * h;
-      for (const g of [legL, legR]) g.add('rbox', p.second, [0, -0.12, 0], [0.32, 0.32, 0.34]);
+      body.add('pebble', p.main, [0, 0.84, 0], [1.0 * b, 0.9 * b, 0.76 * b]);
+      body.add('pebble', p.belly, [0, 0.76, 0.32 * b], [0.58 * b, 0.5 * b, 0.16]);
+      // rock bumps for a hand-made feel
+      body.add('sphere', shade(p.main, -0.12), [0.32 * b, 1.18 * b, -0.12], [0.2, 0.14, 0.2]);
+      body.add('sphere', shade(p.main, 0.08), [-0.36 * b, 0.6, 0.28 * b], [0.14, 0.1, 0.1]);
+      body.add('sphere', shade(p.main, -0.08), [-0.28 * b, 1.2 * b, -0.2], [0.16, 0.12, 0.16]);
+      headPos = [0, 0.84 + 0.42 * b + 0.24 * h, 0.14];
+      R = 0.38 * h;
+      for (const g of [legL, legR]) g.add('pebble', p.second, [0, -0.12, 0.02], [0.34, 0.34, 0.38]);
       legPos = [
-        [0.26 * b, 0.3, 0],
-        [-0.26 * b, 0.3, 0],
+        [0.27 * b, 0.3, 0],
+        [-0.27 * b, 0.3, 0],
       ];
       for (const [g, s] of [
         [armL, 1],
         [armR, -1],
       ] as const) {
-        g.add('rbox', p.main, [0.1 * s, -0.28, 0], [0.32, 0.62, 0.32]);
-        g.add('rbox', p.second, [0.12 * s, -0.65, 0.04], [0.42, 0.36, 0.42]);
+        g.add('pebble', p.main, [0.1 * s, -0.28, 0], [0.34, 0.6, 0.34]);
+        g.add('pebble', p.second, [0.12 * s, -0.66, 0.04], [0.46, 0.4, 0.46]);
       }
-      armPosL = [0.62 * b, 1.08, 0];
+      armPosL = [0.62 * b, 1.1, 0];
       tailPos = [0, 0.6, -0.4 * b];
       height = headPos[1] + R + 0.25;
       break;

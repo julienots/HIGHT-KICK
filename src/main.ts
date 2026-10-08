@@ -7,6 +7,7 @@ import { App } from './ui/app';
 import { playStudioIntro } from './ui/splash';
 import { runLoading } from './ui/loading';
 import { registerScreens } from './ui/screens';
+import { App as CapApp } from '@capacitor/app';
 
 async function boot() {
   const ui = document.getElementById('ui')!;
@@ -17,6 +18,14 @@ async function boot() {
   if (!skipIntro) await playStudioIntro(ui);
   await runLoading(app, skipIntro);
   app.start();
+  // Android hardware back button: pause in match, navigate back in menus, never quit by accident
+  CapApp.addListener('backButton', () => {
+    const modalBack = document.querySelector('.modal-back') as HTMLElement | null;
+    if (modalBack) return modalBack.remove();
+    if (app.match) return app.match.hud.pause(!app.match.paused);
+    if (app.screenStack.length && app.screen && !app.screen.el.classList.contains('home')) app.back();
+  }).catch(() => {});
+  CapApp.addListener('pause', () => app.meta.flush()).catch(() => {});
 }
 
 boot().catch((e) => {

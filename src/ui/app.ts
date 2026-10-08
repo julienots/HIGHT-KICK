@@ -8,6 +8,7 @@ import { MenuScene } from '../render/menuScene';
 import { Renderer } from '../render/renderer';
 import type { MatchConfig } from '../sim/entities';
 import { World } from '../sim/world';
+import { BotBrain, botProfile } from '../sim/ai';
 import { LocalStorageAdapter } from '../systems/save';
 import { Meta } from '../systems/meta';
 import { h, showRewards, toast } from './dom';
@@ -64,6 +65,8 @@ export class App {
   selectedMode: ModeId = 'beast_rush';
   selectedArena: string | 'random' = 'random';
   running = false;
+  /** debug/e2e: simulation speed multiplier */
+  timeScale = 1;
 
   constructor() {
     this.meta = new Meta(new LocalStorageAdapter());
@@ -156,6 +159,7 @@ export class App {
     } else this.go('home');
   }
   private mountScreen(s: Screen) {
+    audio.playMusic({ tempo: 118, root: 62, scale: 'major', intensity: 0.5, style: 'menu' });
     if (this.screen) {
       this.screen.unmount?.();
       this.screen.el.remove();
@@ -172,7 +176,7 @@ export class App {
     const jid = s.profile.selectedJacker;
     const jp = s.jackers[jid];
     const arena = opts.arena && opts.arena !== 'random' ? opts.arena : this.randomArena();
-    const difficulty = opts.difficulty ?? s.settings.difficulty;
+    const difficulty = opts.difficulty ?? (s.tutorialDone ? s.settings.difficulty : 'easy');
     const cfg: MatchConfig = {
       mode: opts.mode,
       arena,
@@ -229,6 +233,11 @@ export class App {
     this.updateRotateHint();
     this.go('home');
   }
+  /** Debug/e2e helper: let the AI drive the player's Jacker. */
+  debugAutoplay() {
+    const p = this.match?.world.player;
+    if (p) p.brain = new BotBrain(this.match!.world, p, botProfile('hard'));
+  }
   /** Called when the player forfeits: counts as a loss. */
   forfeit() {
     const m = this.match;
@@ -273,6 +282,7 @@ export class App {
       stars,
       eventId: m.opts.eventId,
     });
+    this.meta.state.tutorialDone = true;
     m.hud.el.style.display = 'none';
     audio.sfx(outcome === 'win' ? 'victory' : outcome === 'loss' ? 'defeat' : 'reveal');
     if (outcome === 'win') haptics.victory();
@@ -280,6 +290,23 @@ export class App {
     const rs = ResultsScreen(this, { world: w, outcome, rewards: res, stars, mvp, opts: m.opts });
     this.ui.appendChild(rs.el);
     rs.mount?.();
+  }
+
+  /** Auto-downgrade graphics when a device can't hold ~30 FPS during matches (keeps the game smooth). */
+  private lowFpsT = 0;
+  private adaptQuality(fps: number) {
+    if (!this.match || this.match.paused || document.hidden || this.timeScale !== 1) return;
+    if (fps < 28) this.lowFpsT += 0.5;
+    else this.lowFpsT = Math.max(0, this.lowFpsT - 0.5);
+    const st = this.meta.state.settings;
+    if (this.lowFpsT >= 6 && st.quality !== 'low' && !st.performance) {
+      this.lowFpsT = 0;
+      const order = ['low', 'medium', 'high', 'ultra'] as const;
+      st.quality = order[Math.max(0, order.indexOf(st.quality) - 1)];
+      this.meta.dirty();
+      this.renderer.setQuality(st.quality, st.performance);
+      toast(`Qualité ajustée : ${st.quality.toUpperCase()} (fluidité)`, '⚙️');
+    }
   }
 
   // ------------------------------------------------------------ loop
@@ -292,7 +319,9 @@ export class App {
     this.fpsAcc += dt;
     this.fpsN++;
     if (this.fpsAcc > 0.5) {
-      this.fpsEl.textContent = `${Math.round(this.fpsN / this.fpsAcc)} FPS · ${this.renderer.quality.toUpperCase()}`;
+      const fps = this.fpsN / this.fpsAcc;
+      this.fpsEl.textContent = `${Math.round(fps)} FPS · ${this.renderer.quality.toUpperCase()}`;
+      this.adaptQuality(fps);
       this.fpsAcc = 0;
       this.fpsN = 0;
     }
@@ -300,9 +329,10 @@ export class App {
     if (m) {
       const STEP = 1 / 60;
       if (!m.paused) {
-        m.acc += dt;
+        m.acc += dt * this.timeScale;
         let n = 0;
-        while (m.acc >= STEP && n < 5) {
+        const maxSteps = 5 * this.timeScale;
+        while (m.acc >= STEP && n < maxSteps) {
           m.hud.applyInput();
           m.world.update(STEP);
           m.view.update(STEP);
@@ -310,7 +340,7 @@ export class App {
           m.acc -= STEP;
           n++;
         }
-        if (n === 5) m.acc = 0;
+        if (n >= maxSteps) m.acc = 0;
         if (n === 0) {
           // still animate view smoothly (no fx)
         }

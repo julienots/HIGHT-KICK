@@ -127,6 +127,37 @@ export class Hud {
     this.aimGroup.add(this.aimLine, this.aimCircle);
     this.aimGroup.visible = false;
     queueMicrotask(() => this.view?.scene.add(this.aimGroup));
+    if (!app.meta.state.tutorialDone) this.startTutorial();
+  }
+
+  /** First match: short contextual coaching. */
+  private startTutorial() {
+    const steps: [number, string][] = [
+      [3.5, '🕹️ Glisse à GAUCHE de l’écran pour te déplacer'],
+      [8, '💥 Touche le bouton ROUGE pour attaquer (glisse pour viser)'],
+      [13, '🥚 Ramasse un ŒUF en marchant dessus…'],
+      [18, '🏠 …et ramène-le dans ta BASE BLEUE pour marquer !'],
+      [24, '🐣 L’œuf évolue avec le temps : plus il est gros, plus il rapporte'],
+      [30, '🧲 Sur un Gravity Node, touche le bouton VIOLET pour piéger tes ennemis'],
+      [36, '⚡ Quand le bouton jaune brille, lance ton SUPER !'],
+    ];
+    const box = h('div', { class: 'panel', style: 'position:absolute;left:50%;top:calc(120px + var(--safe-t));transform:translateX(-50%);padding:8px 16px;font-family:Lilita One;font-size:18px;pointer-events:none;display:none;max-width:90%;text-align:center' });
+    box.classList.add('stroke');
+    this.el.appendChild(box);
+    const tick = setInterval(() => {
+      if (!this.el.isConnected) return clearInterval(tick);
+      const t = this.world.time;
+      const cur = steps.filter(([at]) => t >= at && t < at + 5).pop();
+      box.style.display = cur ? 'block' : 'none';
+      if (cur && box.textContent !== cur[1]) {
+        box.textContent = cur[1];
+        audio.sfx('reveal');
+      }
+      if (t > 45) {
+        box.remove();
+        clearInterval(tick);
+      }
+    }, 250);
   }
 
   private actionBtn(cls: string, icon: string, kind: DragState['kind']) {
@@ -256,7 +287,7 @@ export class Hud {
   /** Called before every simulation step. */
   applyInput() {
     const p = this.world.player;
-    if (!p) return;
+    if (!p || p.brain) return;
     let mx = this.joyV.x,
       mz = this.joyV.y;
     const K = this.keys;
