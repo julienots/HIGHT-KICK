@@ -1,0 +1,10 @@
+{
+  "appId": "com.superessence.beastgravity",
+  "appName": "Beast Gravity",
+  "webDir": "dist",
+  "android": {
+    "backgroundColor": "#0b0820",
+    "allowMixedContent": false
+  },
+  "plugins": {}
+}

@@ -1,0 +1,35 @@
+{
+  "name": "beast-gravity",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BEAST GRAVITY by SUPERESSENCE - 3v3 Action Arena + Monster Collection + Gravity Combat (offline-first)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview --port 4173",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "e2e": "playwright test",
+    "cap:sync": "npm run build && npx cap sync android",
+    "android:debug": "npm run cap:sync && cd android && ./gradlew assembleDebug",
+    "android:release": "npm run cap:sync && cd android && ./gradlew assembleRelease bundleRelease"
+  },
+  "dependencies": {
+    "@capacitor/app": "^7.1.2",
+    "@capacitor/core": "^7.6.9",
+    "@capacitor/haptics": "^7.0.5",
+    "@fontsource/lilita-one": "^5.3.0",
+    "@fontsource/nunito": "^5.3.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^7.6.9",
+    "@capacitor/cli": "^7.6.9",
+    "@playwright/test": "^1.56.1",
+    "@types/three": "^0.170.0",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}

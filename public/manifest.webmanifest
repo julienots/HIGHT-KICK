@@ -1,0 +1,11 @@
+{
+  "name": "BEAST GRAVITY",
+  "short_name": "Beast Gravity",
+  "description": "3v3 Action Arena + Monster Collection + Gravity Combat — by SUPERESSENCE",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0820",
+  "theme_color": "#0b0820",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+}
