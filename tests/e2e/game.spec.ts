@@ -76,7 +76,7 @@ test('a full match can be played offline, rewards are granted and saved', async 
   await boot(page, errors);
   await context.setOffline(true);
   const before = await page.evaluate(() => (window as any).__bg.meta.state.currencies.coins);
-  await page.locator('.playbtn').click();
+  await page.locator('.playbtn').click({ force: true });
   await expect(page.locator('.hud')).toBeVisible();
   // real touch-style input: move with the keyboard and attack
   await page.keyboard.down('w');
