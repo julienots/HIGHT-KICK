@@ -40,6 +40,8 @@ jobs:
   android:
     needs: test
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     env:
       VERSION_CODE: ${{ github.run_number }}
       VERSION_NAME: 0.1.${{ github.run_number }}
@@ -83,3 +85,21 @@ jobs:
             android/app/build/outputs/apk/debug/*.apk
             android/app/build/outputs/apk/release/*.apk
             android/app/build/outputs/bundle/release/*.aab
+      - name: Publish APK/AAB to the apk-builds branch and a GitHub Release
+        if: github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out
+          cp android/app/build/outputs/apk/debug/app-debug.apk out/BeastGravity-debug.apk
+          cp android/app/build/outputs/apk/release/app-release.apk out/BeastGravity-release.apk
+          cp android/app/build/outputs/bundle/release/app-release.aab out/BeastGravity-release.aab
+          cd out
+          git init -q -b apk-builds
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add . && git commit -qm "BEAST GRAVITY build ${VERSION_NAME} (${GITHUB_SHA::7})"
+          git push -f "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" apk-builds
+          cd ..
+          gh release delete latest-build -y --cleanup-tag || true
+          gh release create latest-build out/* --target "$GITHUB_SHA" --prerelease --title "BEAST GRAVITY ${VERSION_NAME}" --notes "Build automatique (APK debug, APK release, AAB release)."
