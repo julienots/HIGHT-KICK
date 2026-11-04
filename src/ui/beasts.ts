@@ -11,6 +11,7 @@ import type { App, Screen } from './app';
 import { bar, btn, chip, h, modal, showRewards, toast } from './dom';
 import { screenWithTabs } from './common';
 import { portraits } from './portraits';
+import { battleTab } from './battle';
 
 const MUT_ICON: Record<string, string> = { none: '', shiny: '✨', giant: '🗻', shadow: '🌑', prism: '🌈' };
 
@@ -122,6 +123,9 @@ export function BeastsScreen(app: App, params?: { tab?: string }): Screen {
       case 'farm':
         body.appendChild(farm(app, render));
         break;
+      case 'battle':
+        body.appendChild(battleTab(app, render));
+        break;
     }
     const nEggs = s.eggs.filter((e) => e.incubating && e.hatchAt <= app.meta.now()).length;
     el = screenWithTabs(
@@ -133,6 +137,7 @@ export function BeastsScreen(app: App, params?: { tab?: string }): Screen {
         { id: 'eggs', label: `🥚 ŒUFS (${s.eggs.length})`, badge: nEggs },
         { id: 'breeding', label: '💞 ÉLEVAGE', badge: s.breeding && s.breeding.end <= app.meta.now() ? 1 : 0 },
         { id: 'farm', label: '🌱 FERME', badge: n.farm },
+        { id: 'battle', label: '⚔️ ARENA' },
       ],
       tab,
       (t) => ((tab = t), render()),

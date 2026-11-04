@@ -1,4 +1,4 @@
-export type ModeId = 'beast_rush' | 'gravity_war' | 'beast_hunt' | 'boss_raid' | 'survival' | 'duel' | 'chaos';
+export type ModeId = 'beast_rush' | 'gravity_war' | 'beast_hunt' | 'boss_raid' | 'survival' | 'duel' | 'chaos' | 'core_king' | 'nest_siege' | 'training';
 
 export interface ModeDef {
   id: ModeId;
@@ -19,6 +19,9 @@ export const MODES: ModeDef[] = [
   { id: 'boss_raid', name: 'BOSS RAID', icon: '👑', desc: '3 Jackers contre un TITAN. Abattez-le avant la fin du temps.', teamSize: 3, duration: 180, target: 1, color: '#ff4d6d', unlockLevel: 4 },
   { id: 'survival', name: 'SURVIVAL', icon: '💀', desc: 'L’arène s’effondre. Pas de réapparition. Dernière équipe debout !', teamSize: 3, duration: 150, target: 0, color: '#c45cff', unlockLevel: 5 },
   { id: 'duel', name: 'DUEL', icon: '⚔️', desc: '1 contre 1. Livre 10 points d’œufs ou élimine ton rival.', teamSize: 1, duration: 150, target: 10, color: '#ff9a3a', unlockLevel: 2 },
+  { id: 'core_king', name: 'CORE KING', icon: '👑', desc: 'Tiens le Gravity Core seul contre tous. Plus ton équipe y reste nombreuse, plus elle marque !', teamSize: 3, duration: 150, target: 100, color: '#7ff7ff', unlockLevel: 3 },
+  { id: 'nest_siege', name: 'NEST SIEGE', icon: '🪺', desc: 'Détruis le Nid ennemi. Chaque œuf livré lui inflige d’énormes dégâts !', teamSize: 3, duration: 180, target: 1, color: '#ff9a3a', unlockLevel: 4 },
+  { id: 'training', name: 'ENTRAÎNEMENT', icon: '🎯', desc: 'Teste ton Jacker contre des mannequins, sans pression et sans limite.', teamSize: 1, duration: 600, target: 0, color: '#9fb4ff', unlockLevel: 1 },
   { id: 'chaos', name: 'CHAOS', icon: '🎲', desc: 'Règles aléatoires, événements en rafale. Tout peut arriver !', teamSize: 3, duration: 180, target: 20, color: '#ff5ad6', unlockLevel: 6 },
 ];
 export const MODE_MAP: Record<ModeId, ModeDef> = Object.fromEntries(MODES.map((m) => [m.id, m])) as any;

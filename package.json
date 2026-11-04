@@ -1,7 +1,7 @@
 {
   "name": "beast-gravity",
   "private": true,
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "BEAST GRAVITY by SUPERESSENCE - 3v3 Action Arena + Monster Collection + Gravity Combat (offline-first)",
   "type": "module",
   "scripts": {

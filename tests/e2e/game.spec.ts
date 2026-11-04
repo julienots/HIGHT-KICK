@@ -16,9 +16,11 @@ async function boot(page: Page, errors: string[]) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto('/?nointro');
   await page.waitForFunction(() => !!(window as any).__bg?.screen, null, { timeout: 60_000 });
-  // first launch of the day shows the login reward popup: claim it
+  // first launch shows the 2.0 news popup then the daily calendar: close both
+  const news = page.getByText('C’EST PARTI !');
+  await news.waitFor({ timeout: 5_000 }).then(() => news.click(), () => {});
   const gift = page.getByText('SUPER !');
-  await gift.waitFor({ timeout: 5_000 }).then(() => gift.click(), () => {});
+  await gift.waitFor({ timeout: 3_000 }).then(() => gift.click(), () => {});
   await page.evaluate(() => document.querySelectorAll('.modal-back').forEach((m) => m.remove()));
 }
 
@@ -42,14 +44,14 @@ test('studio intro and loading screen play before the menu', async ({ page }) =>
   await expect(page.locator('.tap')).toBeVisible({ timeout: 20_000 });
   await page.mouse.click(640, 600);
   await expect(page.locator('.playbtn')).toBeVisible();
-  await expect(page.getByText('CONNEXION')).toBeVisible();
+  await expect(page.getByText('RENAISSANCE')).toBeVisible();
   expect(errors).toEqual([]);
 });
 
 test('all main menu buttons open working screens', async ({ page }) => {
   const errors: string[] = [];
   await boot(page, errors);
-  const navs = ['SHOP', 'PASS', 'QUESTS', 'EVENTS', 'JACKERS', 'BEASTS', 'COFFRES', 'PROFIL'];
+  const navs = ['SHOP', 'PASS', 'QUESTS', 'EVENTS', 'CLUB', 'JACKERS', 'BEASTS', 'ARENA', 'COFFRES', 'PROFIL'];
   for (const n of navs) {
     await page.locator('.navbtn', { hasText: n }).click();
     await expect(page.locator('.screen')).toBeVisible();
@@ -133,7 +135,7 @@ test('chest opening grants rewards', async ({ page }) => {
 test('every game mode starts and runs', async ({ page }) => {
   const errors: string[] = [];
   await boot(page, errors);
-  for (const mode of ['beast_rush', 'gravity_war', 'beast_hunt', 'boss_raid', 'survival', 'duel', 'chaos']) {
+  for (const mode of ['beast_rush', 'gravity_war', 'beast_hunt', 'boss_raid', 'survival', 'duel', 'chaos', 'core_king', 'nest_siege', 'training']) {
     await page.evaluate((m) => {
       const a = (window as any).__bg;
       if (a.match) a.quitMatch();
@@ -144,5 +146,46 @@ test('every game mode starts and runs', async ({ page }) => {
     }, mode);
     await expect.poll(() => page.evaluate(() => (window as any).__bg.match?.world.time ?? 0), { timeout: 60_000 }).toBeGreaterThan(3);
   }
+  expect(errors).toEqual([]);
+});
+
+test('2.0: comets, club, beast arena and companion work', async ({ page }) => {
+  const errors: string[] = [];
+  await boot(page, errors);
+  // comets (welcome bundle)
+  const drops = await page.evaluate(() => (window as any).__bg.meta.state.starDrops);
+  expect(drops).toBeGreaterThan(0);
+  await page.locator('.btn.comet').click({ force: true });
+  const stage = page.locator('.stardrop');
+  await expect(stage).toBeVisible();
+  for (let i = 0; i < 60 && !(await page.getByText('SUPER !').isVisible()); i++) {
+    await stage.click({ position: { x: 640, y: 300 } });
+    await page.waitForTimeout(250);
+  }
+  await page.getByText('SUPER !').click();
+  expect(await page.evaluate(() => (window as any).__bg.meta.state.starDrops)).toBe(0);
+  // club
+  await page.evaluate(() => (window as any).__bg.go('club'));
+  await page.getByText('REJOINDRE').first().click();
+  await expect(page.getByText('MEMBRES')).toBeVisible();
+  // beast arena fight
+  await page.evaluate(() => {
+    const a = (window as any).__bg;
+    a.meta.state.beasts.push({ uid: 'hero', speciesId: 'voltaris', level: 30, xp: 0, stage: 3, mutation: 'none', obtainedAt: 0, favorite: false, breedReadyAt: 0 });
+    a.meta.state.battle.team = ['hero'];
+    a.go('beasts', { tab: 'battle' });
+  });
+  await page.getByRole('button', { name: /COMBATTRE/ }).click();
+  await page.getByText('PASSER').click();
+  await expect(page.getByText('VICTOIRE !')).toBeVisible({ timeout: 20_000 });
+  await page.getByText('CONTINUER').click();
+  expect(await page.evaluate(() => (window as any).__bg.meta.state.battle.floor)).toBe(2);
+  // companion joins a match
+  await page.evaluate(() => {
+    const a = (window as any).__bg;
+    a.meta.state.profile.companion = 'hero';
+    a.play({ mode: 'beast_rush', arena: 'mushroom_grove' });
+  });
+  await expect.poll(() => page.evaluate(() => (window as any).__bg.match?.world.wilds.filter((w: any) => w.owner).length ?? 0)).toBe(2);
   expect(errors).toEqual([]);
 });

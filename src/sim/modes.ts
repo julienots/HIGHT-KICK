@@ -1,7 +1,7 @@
 import { BEASTS, getBeast } from '../data/beasts';
 import { RARITIES } from '../data/rarities';
 import { C } from './grid';
-import type { Egg, Unit, Wild } from './entities';
+import type { Egg, Turret, Unit, Wild } from './entities';
 import { EGG_POINTS, type World } from './world';
 
 /** Mode rules: hooks called by the World. Each game mode customises scoring/spawns/end conditions. */
@@ -274,6 +274,115 @@ class SurvivalRules extends ModeRules {
   }
 }
 
+/** CORE KING: a single capture zone on the Gravity Core; points per second per Jacker inside. */
+class CoreKingRules extends ModeRules {
+  eggs = false;
+  acc = 0;
+  setup() {
+    const w = this.w;
+    w.captures.push({ id: w.id(), x: w.core.x, z: w.core.z, r: 4.4, owner: -1, progress: 0 });
+  }
+  preUpdate() {}
+  update(dt: number) {
+    const w = this.w;
+    const z = w.captures[0];
+    let a = 0,
+      b = 0;
+    for (const u of w.units) if (u.alive && Math.hypot(u.x - z.x, u.z - z.z) < z.r) u.team === 0 ? a++ : b++;
+    const prev = z.owner;
+    z.owner = a && !b ? 0 : b && !a ? 1 : -1;
+    z.progress = z.owner === 0 ? -1 : z.owner === 1 ? 1 : 0;
+    if (prev !== z.owner && z.owner >= 0) w.emit({ t: 'capture', zone: z.id, team: z.owner });
+    this.acc += dt;
+    if (this.acc >= 1) {
+      this.acc -= 1;
+      if (z.owner >= 0) {
+        w.score[z.owner] += Math.min(3, z.owner === 0 ? a : b) + 1;
+        for (const u of w.units) if (u.alive && u.team === z.owner && Math.hypot(u.x - z.x, u.z - z.z) < z.r) u.stats.captures++;
+      }
+    }
+    if (w.score[0] >= w.target || w.score[1] >= w.target) w.end(w.score[0] >= w.score[1] ? 0 : 1, 'score');
+  }
+  onTimeUp() {
+    const w = this.w;
+    w.end(w.score[0] === w.score[1] ? 2 : w.score[0] > w.score[1] ? 0 : 1, 'time');
+  }
+}
+
+/** NEST SIEGE: each team defends a Nest. Delivered eggs blast the enemy Nest. */
+class NestSiegeRules extends ModeRules {
+  nests: Turret[] = [];
+  setup() {
+    super.setup();
+    const w = this.w;
+    const hp = { easy: 24000, normal: 30000, hard: 34000, expert: 38000, master: 42000 }[w.cfg.difficulty];
+    for (const team of [0, 1]) {
+      const b = w.baseCenter[team];
+      const owner = w.units.find((u) => u.team === team)!;
+      const t: Turret = { kind: 'turret', id: w.id(), team, owner, x: b.x, z: b.z, hp, maxHp: hp, dmg: 380, rate: 1.1, range: 7, t: Infinity, cd: 1, alive: true, decoy: false, facing: 0, color: team === 0 ? '#5fb0ff' : '#ff6a7a', nest: true };
+      w.turrets.push(t);
+      this.nests[team] = t;
+    }
+  }
+  onDeliver(u: Unit, e: Egg) {
+    super.onDeliver(u, e);
+    const w = this.w;
+    const foe = this.nests[1 - u.team];
+    if (foe?.alive) w.damage(null, foe, EGG_POINTS[e.phase] * 2600, { noCharge: true, color: '#ffd23a' });
+  }
+  update() {
+    const w = this.w;
+    w.score[0] = Math.ceil((Math.max(0, this.nests[0].hp) / this.nests[0].maxHp) * 100);
+    w.score[1] = Math.ceil((Math.max(0, this.nests[1].hp) / this.nests[1].maxHp) * 100);
+    if (!this.nests[0].alive || !this.nests[1].alive) w.end(this.nests[0].alive ? 0 : this.nests[1].alive ? 1 : 2, 'nest');
+  }
+  onTimeUp() {
+    const w = this.w;
+    w.end(w.score[0] === w.score[1] ? 2 : w.score[0] > w.score[1] ? 0 : 1, 'time');
+  }
+}
+
+/** TRAINING: the player alone against regenerating dummies. */
+class TrainingRules extends ModeRules {
+  eggs = false;
+  coreEvents = false;
+  ambientWilds = false;
+  respawnQ: { t: number; x: number; z: number; id: string }[] = [];
+  setup() {
+    const w = this.w;
+    const spots = [
+      [-5, -4],
+      [5, -4],
+      [0, -9],
+      [-7, -12],
+      [7, -12],
+    ];
+    const ids = ['pebblit', 'flamby', 'bubbloo', 'zappik', 'snowpip'];
+    spots.forEach(([x, z], i) => this.dummy(ids[i], x, z));
+  }
+  dummy(id: string, x: number, z: number) {
+    const w = this.w;
+    const sp = w.safeSpot(x, z);
+    const d = w.spawnWild(id, sp.x, sp.z, { team: 1 });
+    d.dummy = true;
+    d.hp = d.maxHp = 8000;
+    d.atk = 0;
+    d.speed = 0;
+  }
+  preUpdate(dt: number) {
+    for (const r of this.respawnQ) r.t -= dt;
+    for (const r of this.respawnQ.filter((r) => r.t <= 0)) this.dummy(r.id, r.x, r.z);
+    this.respawnQ = this.respawnQ.filter((r) => r.t > 0);
+  }
+  onWildKill(wild: Wild) {
+    this.respawnQ.push({ t: 2.5, x: wild.x, z: wild.z, id: wild.speciesId });
+  }
+  update() {}
+  onTimeUp() {
+    this.w.end(0, 'training');
+  }
+}
+
 export function createRules(w: World): ModeRules {
   switch (w.cfg.mode) {
     case 'duel':
@@ -286,6 +395,12 @@ export function createRules(w: World): ModeRules {
       return new BossRules(w);
     case 'survival':
       return new SurvivalRules(w);
+    case 'core_king':
+      return new CoreKingRules(w);
+    case 'nest_siege':
+      return new NestSiegeRules(w);
+    case 'training':
+      return new TrainingRules(w);
     default:
       return new ModeRules(w);
   }

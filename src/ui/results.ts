@@ -9,8 +9,9 @@ import type { GrantedItem } from '../systems/ctx';
 import type { App, PlayOpts, Screen } from './app';
 import { btn, h, rewardItems } from './dom';
 import { portraits } from './portraits';
+import { openStarDrops } from './stardrop';
 
-export function ResultsScreen(app: App, d: { world: World; outcome: 'win' | 'loss' | 'draw'; rewards: MatchRewards & { eventReward: GrantedItem[] | null }; stars: number; mvp: Unit | null; opts: PlayOpts }): Screen {
+export function ResultsScreen(app: App, d: { world: World; outcome: 'win' | 'loss' | 'draw'; rewards: MatchRewards & { eventReward: GrantedItem[] | null; masteryPts?: number; starDrop?: boolean }; stars: number; mvp: Unit | null; opts: PlayOpts }): Screen {
   const w = d.world;
   const p = w.player!;
   const title = d.outcome === 'win' ? 'VICTOIRE !' : d.outcome === 'loss' ? 'DÉFAITE' : 'ÉGALITÉ';
@@ -47,6 +48,8 @@ export function ResultsScreen(app: App, d: { world: World; outcome: 'win' | 'los
   if (r.egg) items.push({ reward: { type: 'egg', rarity: 'common' }, label: `Œuf ${getBeast(r.egg).name}`, icon: '🥚', color: '#4dff7a', isNew: true });
   if (r.firstClear) items.push({ reward: r.firstClear, label: 'Premier succès', icon: '🎖️', color: '#ff9a3a', isNew: true });
   if (d.rewards.eventReward) items.push(...d.rewards.eventReward);
+  if (r.masteryPts) items.push({ reward: { type: 'xp', amount: 0 }, label: `+${r.masteryPts} MAÎTRISE`, icon: '🎖️', color: '#ff9a3a' });
+  if (r.starDrop) items.push({ reward: { type: 'xp', amount: 0 }, label: 'COMÈTE', icon: '☄️', color: '#4dff7a', isNew: true });
   const el = h(
     'div',
     { class: 'results' },
@@ -66,6 +69,7 @@ export function ResultsScreen(app: App, d: { world: World; outcome: 'win' | 'los
       btn('🏠 CONTINUER', 'blue big', () => {
         el.remove();
         app.quitMatch();
+        if (app.meta.state.starDrops > 0) openStarDrops(app, () => app.screen?.refresh?.());
       }),
       btn('🔁 REJOUER', 'green big', () => {
         el.remove();

@@ -127,7 +127,7 @@ export class BotBrain {
     }
     if (mode === 'boss_raid') {
       const boss = w.wilds.find((x) => x.isBoss && x.alive);
-      const minion = w.wilds.filter((x) => x.alive && !x.isBoss).sort((a, b) => dist(u, a) - dist(u, b))[0];
+      const minion = w.wilds.filter((x) => x.alive && !x.isBoss && x.team !== u.team).sort((a, b) => dist(u, a) - dist(u, b))[0];
       const t = minion && dist(u, minion) < 6 ? minion : boss;
       if (t) this.goal = { kind: 'boss', x: t.x, z: t.z, target: t };
       return;
@@ -162,7 +162,7 @@ export class BotBrain {
         }
       }
     }
-    if (mode === 'gravity_war') {
+    if (mode === 'gravity_war' || mode === 'core_king') {
       const zones = w.captures.slice().sort((a, b) => {
         const sa = (a.owner === u.team ? 12 : 0) + Math.hypot(a.x - u.x, a.z - u.z);
         const sb = (b.owner === u.team ? 12 : 0) + Math.hypot(b.x - u.x, b.z - u.z);
@@ -176,7 +176,7 @@ export class BotBrain {
       return;
     }
     if (mode === 'beast_hunt') {
-      const wild = w.wilds.filter((x) => x.alive).sort((a, b) => dist(u, a) - dist(u, b) - (b.rarityIdx - a.rarityIdx) * 2)[0];
+      const wild = w.wilds.filter((x) => x.alive && !x.owner && x.team !== u.team).sort((a, b) => dist(u, a) - dist(u, b) - (b.rarityIdx - a.rarityIdx) * 2)[0];
       if (nearestEnemy && dist(u, nearestEnemy) < 7) this.goal = { kind: 'fight', x: nearestEnemy.x, z: nearestEnemy.z, target: nearestEnemy };
       else if (wild) this.goal = { kind: 'hunt', x: wild.x, z: wild.z, target: wild };
       else this.goal = { kind: 'roam', x: w.core.x, z: w.core.z };
@@ -219,10 +219,17 @@ export class BotBrain {
       this.goal = { kind: 'fight', x: nearestEnemy.x, z: nearestEnemy.z, target: nearestEnemy };
       return;
     }
-    const wild = w.wilds.find((x) => x.alive && dist(u, x) < 8);
+    const wild = w.wilds.find((x) => x.alive && !x.owner && x.team !== u.team && dist(u, x) < 8);
     if (wild) {
       this.goal = { kind: 'hunt', x: wild.x, z: wild.z, target: wild };
       return;
+    }
+    if (mode === 'nest_siege') {
+      const nest = w.turrets.find((t) => t.nest && t.alive && t.team !== u.team);
+      if (nest) {
+        this.goal = { kind: 'fight', x: nest.x, z: nest.z, target: nest };
+        return;
+      }
     }
     this.goal = { kind: 'roam', x: w.core.x + (Math.random() - 0.5) * 6, z: w.core.z + (u.team === 0 ? 4 : -4) };
   }
@@ -449,6 +456,10 @@ export class BotBrain {
         u.input.az = n.z;
       }
     };
+    if (u.canHyper && u.hyper >= 1 && near(9).length > 0) {
+      u.input.hyper = true;
+      return;
+    }
     if (u.superCharge >= 1 && decide(u.def.super.def, true)) {
       aimAt(14);
       u.input.super = true;

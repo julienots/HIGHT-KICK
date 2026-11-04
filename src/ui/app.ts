@@ -8,6 +8,7 @@ import { MenuScene } from '../render/menuScene';
 import { Renderer } from '../render/renderer';
 import type { MatchConfig } from '../sim/entities';
 import { World } from '../sim/world';
+import { beastStats } from '../systems/beasts';
 import { BotBrain, botProfile } from '../sim/ai';
 import { LocalStorageAdapter } from '../systems/save';
 import { Meta } from '../systems/meta';
@@ -15,6 +16,7 @@ import { h, showRewards, toast } from './dom';
 import { Hud } from './hud';
 import { ResultsScreen } from './results';
 import { offlineService } from '../online/service';
+import { showDailyCalendar, showNews } from './news';
 
 export interface Screen {
   el: HTMLElement;
@@ -131,7 +133,7 @@ export class App {
     const daily = this.meta.progression.dailyCheck();
     this.meta.quests.refresh();
     this.go('home');
-    if (daily.gift) setTimeout(() => showRewards(`CONNEXION — JOUR ${daily.streak}`, daily.gift!), 600);
+    setTimeout(() => showNews(this, () => (daily.gift ? showDailyCalendar(this, daily.streak, daily.gift) : undefined)), 600);
     if (daily.reset) setTimeout(() => toast(`Nouvelle saison ! ${daily.reset!.lost} trophées → ${daily.reset!.coins} coins`, '🏆', '#c45cff'), 1500);
     this.meta.saveNow();
     requestAnimationFrame((t) => this.loop(t));
@@ -193,7 +195,9 @@ export class App {
         useGadget: jp.level >= 7,
         useStarPower: jp.level >= 10,
         useSpecial: jp.level >= 14,
+        useHyper: jp.level >= 16,
         bonus: this.meta.beasts.companionBonus(),
+        pet: this.petConfig(),
       },
       modifiers: opts.modifiers,
       eventId: opts.eventId,
@@ -201,6 +205,19 @@ export class App {
       botLevel: Math.max(1, Math.round((jp.level + Math.min(20, s.level / 2)) / 2)),
     };
     this.startMatch(cfg, opts);
+  }
+  /** Companion creature that fights next to the player (2.0). */
+  petConfig() {
+    const s = this.meta.state;
+    const b = s.profile.companion ? s.beasts.find((x) => x.uid === s.profile.companion) : null;
+    if (!b) return null;
+    const st = beastStats(b);
+    return { speciesId: b.speciesId, stage: b.stage, mutation: b.mutation, hp: 1800 + st.hp * 1.6, atk: 120 + st.atk * 1.8 };
+  }
+  /** Brief simulation freeze for impactful hits (game feel). */
+  hitStopT = 0;
+  hitStop(t: number) {
+    this.hitStopT = Math.max(this.hitStopT, t);
   }
   randomArena() {
     const unlocked = ARENAS.filter((a) => this.meta.progression.arenaUnlocked(a.id));
@@ -248,6 +265,11 @@ export class App {
     const m = this.match!;
     const w = m.world;
     const p = w.player!;
+    if (w.cfg.mode === 'training') {
+      this.quitMatch();
+      toast(`Entraînement terminé · ${Math.round(p.stats.damage)} dégâts`, '🎯');
+      return;
+    }
     const outcome = w.winner === 2 ? 'draw' : w.winner === p.team ? 'win' : 'loss';
     const mvp = w.mvp();
     let stars = 0;
@@ -329,7 +351,14 @@ export class App {
     if (m) {
       const STEP = 1 / 60;
       if (!m.paused) {
-        m.acc += dt * this.timeScale;
+        // hit-stop freezes the sim a few frames; the end of a match plays in slow motion
+        let simDt = dt * this.timeScale;
+        if (this.hitStopT > 0) {
+          this.hitStopT -= dt;
+          simDt *= 0.08;
+        }
+        if (m.world.state === 'ended' && m.endT < 1.2 && this.timeScale === 1) simDt *= 0.35;
+        m.acc += simDt;
         let n = 0;
         const maxSteps = 5 * this.timeScale;
         while (m.acc >= STEP && n < maxSteps) {

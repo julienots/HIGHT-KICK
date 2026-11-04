@@ -8,6 +8,7 @@ import type { App, Screen } from './app';
 import { btn, h } from './dom';
 import { topBar } from './common';
 import { openModeSelect } from './play';
+import { openStarDrops } from './stardrop';
 
 export function HomeScreen(app: App): Screen {
   const el = h('div', { class: 'home' });
@@ -33,14 +34,16 @@ export function HomeScreen(app: App): Screen {
         nav('🎟️', 'PASS', 'pass', '#d18bff', '#8a35e0', n.pass),
         nav('🎯', 'QUESTS', 'quests', '#9df55a', '#37b81c', n.quests + n.achievements),
         nav('🎉', 'EVENTS', 'events', '#ff8ad8', '#e0237a'),
+        nav('🛡️', 'CLUB', 'club', '#ffd23a', '#c98a00'),
       ),
     );
     el.appendChild(
       h(
         'div',
         { class: 'home-right' },
-        nav('🧑‍🚀', 'JACKERS', 'jackers', '#63d6ff', '#1f7cf2'),
+        nav('🧑‍🚀', 'JACKERS', 'jackers', '#63d6ff', '#1f7cf2', n.mastery),
         nav('🐾', 'BEASTS', 'beasts', '#9df55a', '#1a8a5a', n.eggs + n.farm),
+        nav('⚔️', 'ARENA', 'beasts', '#ff7a8a', '#b3122f', 0, { tab: 'battle' }),
         nav('🎁', 'COFFRES', 'chests', '#ffe760', '#ff9a00', n.chests),
         nav('👤', 'PROFIL', 'profile', '#c9d6e8', '#6a7a99'),
       ),
@@ -71,7 +74,8 @@ export function HomeScreen(app: App): Screen {
         btn('JOUER', 'playbtn', () => app.play({ mode: app.selectedMode, arena: app.selectedArena })),
       ),
     );
-    el.appendChild(h('div', { class: 'home-left-bottom' }, btn('⚙️', 'white iconbtn', () => app.go('settings')), btn('🗺️', 'blue iconbtn', () => app.go('events', { tab: 'campaign' }))));
+    const comet = s.starDrops > 0 ? btn(h('span', null, '☄️', h('span', { class: 'badge' }, String(s.starDrops))), 'green iconbtn comet', () => openStarDrops(app, render)) : null;
+    el.appendChild(h('div', { class: 'home-left-bottom' }, btn('⚙️', 'white iconbtn', () => app.go('settings')), btn('🗺️', 'blue iconbtn', () => app.go('events', { tab: 'campaign' })), btn('🎯', 'purple iconbtn', () => app.play({ mode: 'training', arena: 'sky_jungle' })), comet));
   };
   render();
   return { el, menu3d: 0, refresh: render };

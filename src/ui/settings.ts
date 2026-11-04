@@ -115,7 +115,7 @@ export function SettingsScreen(app: App): Screen {
       h('div', { class: 'section-title stroke' }, '🌐 EN LIGNE'),
       h('div', { class: 'setting' }, h('div', { class: 'small' }, '📴 BEAST GRAVITY fonctionne entièrement hors ligne. Les fonctionnalités en ligne (PvP, amis, clans, classements mondiaux, sauvegarde cloud) arriveront plus tard et resteront optionnelles.')),
       h('div', { class: 'section-title stroke' }, 'ℹ️ À PROPOS'),
-      h('div', { class: 'setting' }, h('div', null, h('div', { class: 'f-title stroke', style: 'font-size:20px' }, 'BEAST GRAVITY v' + (import.meta.env.VITE_APP_VERSION ?? '0.1.0')), h('div', { class: 'small' }, '© SUPERESSENCE — Tous les personnages, créatures, arènes, sons et musiques sont des créations originales générées procéduralement.'))),
+      h('div', { class: 'setting' }, h('div', null, h('div', { class: 'f-title stroke', style: 'font-size:20px' }, 'BEAST GRAVITY v2.0 · RENAISSANCE'), h('div', { class: 'small' }, '© SUPERESSENCE — Tous les personnages, créatures, arènes, sons et musiques sont des créations originales générées procéduralement.'))),
       h('div', { class: 'small muted' }, 'Clavier : ZQSD/WASD bouger · Clic/Espace attaque · E compétence · Q/R ou clic droit super · F interagir · G gadget · 1-4 emotes · Échap pause'),
     );
     wrap.innerHTML = '';

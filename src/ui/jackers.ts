@@ -8,6 +8,8 @@ import type { App, Screen } from './app';
 import { bar, btn, chip, confirmModal, h, toast } from './dom';
 import { topBarMini } from './common';
 import { portraits } from './portraits';
+import { MASTERY_NAMES, MASTERY_TIERS, masteryReward } from '../systems/renaissance';
+import { rewardVisual } from './pass';
 
 export function JackersScreen(app: App): Screen {
   const el = h('div', { class: 'screen bg' });
@@ -57,6 +59,36 @@ function abilityText(def: AbilityDef) {
   if (d.duration) parts.push(`⏱ ${d.duration}s`);
   if (d.count && d.count > 1) parts.push(`×${d.count}`);
   return parts.join(' · ');
+}
+
+function masteryBlock(app: App, jid: string, rerender: () => void) {
+  const jp = app.meta.state.jackers[jid];
+  const tier = app.meta.mastery.tier(jid);
+  const next = MASTERY_TIERS[tier];
+  const prev = tier ? MASTERY_TIERS[tier - 1] : 0;
+  return h(
+    'div',
+    null,
+    h('div', { class: 'section-title stroke' }, `🎖️ MAÎTRISE · ${tier ? MASTERY_NAMES[tier - 1] : 'NON CLASSÉ'}`),
+    next ? bar(jp.mastery - prev, next - prev, `${jp.mastery} / ${next}`, '#ffb36b', '#ff6a1f') : bar(1, 1, `MAÎTRISE MAX · ${jp.mastery}`, '#ffd23a', '#ff9a00'),
+    h(
+      'div',
+      { class: 'skinrow', style: 'margin-top:6px' },
+      MASTERY_TIERS.map((t, i) => {
+        const got = jp.masteryClaimed.includes(i);
+        const can = i < tier && !got;
+        const v = rewardVisual(masteryReward(i, jid)[0]);
+        return h(
+          'div',
+          { class: 'passcell' + (can ? ' claim' : '') + (got ? ' done' : ''), style: 'min-width:84px', onclick: () => can && app.meta.mastery.claim(jid, i) && (audio.sfx('levelUp'), rerender()) },
+          h('div', { class: 'small stroke' }, MASTERY_NAMES[i]),
+          h('div', { class: 'pi' }, v.icon),
+          h('div', { class: 'small' }, v.label),
+          h('div', { class: 'small muted' }, `${t} pts`),
+        );
+      }),
+    ),
+  );
 }
 
 export function JackerDetail(app: App, params: { id: string }): Screen {
@@ -131,6 +163,8 @@ export function JackerDetail(app: App, params: { id: string }): Screen {
       ab(j.skill.icon, '#1f7cf2', `COMPÉTENCE · ${j.skill.name}`, j.skill.desc, `${abilityText(j.skill.def)} · ⏳ ${j.skill.cd}s`),
       ab(j.super.icon, '#ffb300', `SUPER · ${j.super.name}`, j.super.desc, abilityText(j.super.def)),
       ab('✨', '#8a35e0', `PASSIF · ${j.passive.name}`, j.passive.desc),
+      ab('💜', jp.level >= 16 ? '#c45cff' : '#4a3a6a', `ÉVEIL ${jp.level >= 16 ? '' : '🔒 Nv 16'}`, 'Charge la jauge violette en combattant puis déchaîne ton Jacker : +25% vitesse et dégâts, -20% dégâts reçus, bouclier et SUPER instantané pendant 6s.'),
+      masteryBlock(app, j.id, render),
       choice('GADGET', GADGET_LEVEL, j.gadgets, jp.gadget, 'gadget'),
       choice('STAR POWER', STARPOWER_LEVEL, j.starPowers, jp.starPower, 'starPower'),
       choice('POUVOIR SPÉCIAL', SPECIAL_LEVEL, j.specials, jp.special, 'special'),

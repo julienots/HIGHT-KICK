@@ -15,6 +15,7 @@ import { animateRig, buildCreature, buildEgg, type Rig } from './models';
 import { makeLights, type Renderer } from './renderer';
 import { glowTexture, toon } from './toon';
 import { VFX } from './vfx';
+import { mutatePalette } from './mutation';
 
 interface UnitView {
   u: Unit;
@@ -140,11 +141,18 @@ export class MatchView {
 
   private addWild(w: Wild) {
     const sp = getBeast(w.speciesId);
-    const rig = buildCreature({ ...sp.model, size: w.size }, sp.palette, { accessory: w.isBoss ? 'crown' : 'none', glow: w.isBoss ? ELEMENT_INFO[sp.element].color : undefined });
+    const rig = buildCreature({ ...sp.model, size: w.size }, mutatePalette(sp.palette, w.mutation ?? 'none'), { accessory: w.isBoss || (w.stage ?? 0) >= 4 ? 'crown' : 'none', glow: w.isBoss ? ELEMENT_INFO[sp.element].color : w.owner && (w.stage ?? 0) >= 3 ? '#ffd23a' : undefined });
     this.scene.add(rig.root);
     const label = document.createElement('div');
-    label.className = 'ulabel wild' + (w.isBoss ? ' boss' : '');
-    label.innerHTML = `<div class="uname">${w.isBoss ? '👑 TITAN ' : ''}${sp.name}</div><div class="hpbar"><div class="hpfill"></div></div>`;
+    const myTeam = this.world.player?.team ?? 0;
+    label.className = 'ulabel wild' + (w.isBoss ? ' boss' : '') + (w.owner ? (w.team === myTeam ? ' pet ally' : ' pet enemy') : '') + (w.dummy ? ' dummy' : '');
+    label.innerHTML = `<div class="uname">${w.isBoss ? '👑 TITAN ' : w.owner ? '🐾 ' : w.dummy ? '🎯 ' : ''}${sp.name}</div><div class="hpbar"><div class="hpfill"></div></div>`;
+    if (w.owner) {
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.55, 0.7, 24), new THREE.MeshBasicMaterial({ color: this.teamColor(w.team), transparent: true, opacity: 0.7, depthWrite: false }));
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.y = 0.05;
+      rig.root.add(ring);
+    }
     this.overlay.appendChild(label);
     this.wilds.set(w.id, { w, rig, label, hpFill: label.querySelector('.hpfill') as HTMLDivElement, hurtT: 0, lastHp: w.hp });
   }
@@ -310,7 +318,27 @@ export class MatchView {
       let g = this.turrets.get(tu.id);
       if (!g) {
         g = new THREE.Group();
-        if (tu.decoy) {
+        if (tu.nest) {
+          const col = this.teamColor(tu.team);
+          const base = new THREE.Mesh(new THREE.CylinderGeometry(1.9, 2.3, 0.8, 16), toon('#8a5a33'));
+          base.position.y = 0.4;
+          const rim = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.45, 8, 24), toon('#c98a4a'));
+          rim.rotation.x = Math.PI / 2;
+          rim.position.y = 0.9;
+          const egg = new THREE.Mesh(new THREE.SphereGeometry(1.1, 18, 14), toon('#fff3d6', { emissive: col }));
+          egg.scale.set(1, 1.3, 1);
+          egg.position.y = 1.9;
+          const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), color: col, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+          halo.scale.setScalar(5);
+          halo.position.y = 2;
+          g.add(base, rim, egg, halo);
+          g.userData.egg = egg;
+          const label = document.createElement('div');
+          label.className = 'ulabel boss ' + (tu.team === (this.world.player?.team ?? 0) ? 'ally' : 'enemy');
+          label.innerHTML = `<div class="uname">🪺 NID ${tu.team === (this.world.player?.team ?? 0) ? 'ALLIÉ' : 'ENNEMI'}</div><div class="hpbar"><div class="hpfill"></div></div>`;
+          this.overlay.appendChild(label);
+          g.userData.label = label;
+        } else if (tu.decoy) {
           const holo = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 0.8, 4, 10), new THREE.MeshBasicMaterial({ color: tu.color, transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }));
           holo.position.y = 0.9;
           g.add(holo);
@@ -330,11 +358,18 @@ export class MatchView {
         this.turrets.set(tu.id, g);
       }
       g.position.set(tu.x, 0, tu.z);
-      if (g.children[1]) g.children[1].rotation.y = tu.facing;
+      if (tu.nest) {
+        const egg = g.userData.egg as THREE.Mesh;
+        egg.rotation.z = Math.sin(this.t * 3) * 0.05 * (2 - tu.hp / tu.maxHp);
+        const lab = g.userData.label as HTMLDivElement;
+        this.placeLabel(lab, tu.x, 4.2, tu.z, true);
+        (lab.querySelector('.hpfill') as HTMLElement).style.width = `${(100 * Math.max(0, tu.hp)) / tu.maxHp}%`;
+      } else if (g.children[1]) g.children[1].rotation.y = tu.facing;
       if (tu.decoy) g.children[0].position.y = 0.9 + Math.sin(this.t * 6) * 0.1;
     }
     for (const [id, g] of this.turrets)
       if (!tl.has(id)) {
+        (g.userData.label as HTMLElement | undefined)?.remove();
         this.scene.remove(g);
         this.turrets.delete(id);
       }
@@ -453,6 +488,10 @@ export class MatchView {
       }
     }
     if (u.dash) this.vfx.trail(u.x, 0.8, u.z, (u as any).fxColor, 0.9, 0.3);
+    if (u.hyperT > 0) {
+      this.vfx.trail(u.x + (Math.random() - 0.5) * 0.8, 0.2 + Math.random() * rig.height, u.z + (Math.random() - 0.5) * 0.8, '#d18bff', 0.7, 0.5);
+      rig.model.scale.multiplyScalar(1.12);
+    }
     if (u.buffT > 0 && Math.random() < 0.3) this.vfx.trail(u.x + (Math.random() - 0.5), 0.3, u.z + (Math.random() - 0.5), '#ffd23a', 0.4, 0.4);
     if (u.burnT > 0 && Math.random() < 0.5) this.vfx.burst(u.x, 1, u.z, '#ff7a1f', 1, 1, { up: 2, grav: 0, size: 0.5, life: 0.4 });
     if (v.wasAir && !u.airborne && !falling) {
@@ -769,6 +808,21 @@ export class MatchView {
           haptics.super();
           this.superCam = 0.6;
           if (this.opts.screenShake) this.shake = 0.3;
+        }
+        break;
+      }
+      case 'hyper': {
+        const u = unit(e.u);
+        if (u) {
+          vfx.flash(u.x, 1.5, u.z, '#d18bff', 7, 0.4);
+          vfx.ring(u.x, u.z, 4, '#d18bff', 0.6);
+          vfx.burst(u.x, 1, u.z, '#f0b8ff', 40, 7, { up: 6, size: 0.8, life: 0.9 });
+        }
+        audio.sfx('rare', 1, u === me ? 1 : 0.5);
+        if (u === me) {
+          haptics.super();
+          this.superCam = 0.9;
+          if (this.opts.screenShake) this.shake = 0.4;
         }
         break;
       }

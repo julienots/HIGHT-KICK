@@ -16,7 +16,7 @@ export function ProfileScreen(app: App, params?: { tab?: string }): Screen {
   const wrap = h('div', { style: 'position:absolute;inset:0' });
   const render = () => {
     const body = h('div', { class: 'screen-body' });
-    body.appendChild(tab === 'road' ? roadTab(app, render) : profileTab(app, render));
+    body.appendChild(tab === 'road' ? roadTab(app, render) : tab === 'ladder' ? ladderTab(app) : profileTab(app, render));
     wrap.innerHTML = '';
     const claimable = TROPHY_ROAD.filter((st, i) => !app.meta.state.trophyRoad.includes(i) && app.meta.progression.totalTrophies() >= st.trophies).length;
     wrap.appendChild(
@@ -26,6 +26,7 @@ export function ProfileScreen(app: App, params?: { tab?: string }): Screen {
         [
           { id: 'profile', label: '👤 PROFIL' },
           { id: 'road', label: '🏆 ROUTE DES TROPHÉES', badge: claimable },
+          { id: 'ladder', label: '🌍 CLASSEMENT' },
         ],
         tab,
         (t) => ((tab = t), render()),
@@ -95,6 +96,24 @@ function profileTab(app: App, rerender: () => void) {
     ),
     h('div', { class: 'section-title stroke' }, 'VICTOIRES PAR MODE'),
     h('div', { class: 'row wrap' }, MODES.map((m) => chip(`${m.icon} ${m.name} : ${st['wins_' + m.id] ?? 0}`, m.color))),
+  );
+}
+
+function ladderTab(app: App) {
+  const l = app.meta.ladder.rows(100);
+  const row = (r: { rank: number; name: string; jacker: string; trophies: number; me: boolean }) => {
+    const img = portraits.jacker(r.jacker);
+    img.style.cssText = 'width:38px;height:38px;object-fit:contain';
+    return h('div', { class: 'listitem panel ' + (r.me ? '' : 'dark'), style: 'padding:5px 10px' }, h('div', { class: 'f-title stroke', style: 'width:44px;font-size:18px' }, ['🥇', '🥈', '🥉'][r.rank - 1] ?? `#${r.rank}`), img, h('div', { class: 'f-title stroke', style: 'flex:1' }, r.name + (r.me ? ' (toi)' : '')), chip(`🏆 ${fmtNum(r.trophies)}`, rankFor(r.trophies).color, '#1b1035'));
+  };
+  return h(
+    'div',
+    { class: 'col' },
+    h('div', { class: 'small muted' }, 'Classement de la saison (joueurs simulés hors ligne — le classement mondial en ligne arrivera plus tard).'),
+    h('div', { class: 'section-title stroke' }, `TA POSITION : #${l.me.rank} / ${l.total}`),
+    row(l.me),
+    h('div', { class: 'section-title stroke' }, 'TOP 100'),
+    l.top.map(row),
   );
 }
 

@@ -10,6 +10,7 @@ import { ACHIEVEMENTS } from '../../src/data/achievements';
 import { SKINS } from '../../src/data/skins';
 import { MIN, HOUR, DAY } from '../../src/core/time';
 import { World } from '../../src/sim/world';
+import { migrate, sanitize } from '../../src/systems/state';
 import { TROPHY_ROAD } from '../../src/systems/progression';
 import { beastStats } from '../../src/systems/beasts';
 
@@ -25,9 +26,9 @@ const win = (extra: any = {}) => ({ mode: 'beast_rush', arena: 'sky_jungle', jac
 
 describe('content volume', () => {
   it('has the required amount of content', () => {
-    expect(JACKERS.length).toBeGreaterThanOrEqual(20);
-    expect(BEASTS.length).toBeGreaterThanOrEqual(50);
-    expect(ARENAS.length).toBeGreaterThanOrEqual(10);
+    expect(JACKERS.length).toBeGreaterThanOrEqual(30);
+    expect(BEASTS.length).toBeGreaterThanOrEqual(80);
+    expect(ARENAS.length).toBeGreaterThanOrEqual(15);
     expect(ACHIEVEMENTS.length).toBeGreaterThanOrEqual(50);
     for (const j of JACKERS) expect(SKINS.filter((s) => s.jackerId === j.id).length).toBeGreaterThanOrEqual(3);
     expect(new Set(BEASTS.map((b) => b.id)).size).toBe(BEASTS.length);
@@ -228,5 +229,65 @@ describe('live systems: quests, pass, shop, achievements, seasons', () => {
     const again = new Meta(t.store, { now: () => t.now });
     expect(again.state.stats.wins).toBe(1);
     expect(again.state.jackers.vex.trophies).toBe(t.meta.state.jackers.vex.trophies);
+  });
+});
+
+describe('2.0 Renaissance meta', () => {
+  it('star drops are earned from matches, capped daily and grant rewards', () => {
+    const t = mkMeta();
+    const s = t.meta.state;
+    const before = s.starDrops;
+    t.meta.applyMatch(win());
+    expect(s.starDrops).toBe(before + 1);
+    for (let i = 0; i < 20; i++) t.meta.applyMatch(win());
+    expect(s.starDropDay.earned).toBe(8);
+    const r = t.meta.starDrops.open()!;
+    expect(r.items.length).toBeGreaterThan(0);
+    expect(r.steps[0]).toBe('rare');
+    expect(r.steps[r.steps.length - 1]).toBe(r.rarity);
+  });
+  it('mastery points unlock claimable tiers', () => {
+    const t = mkMeta();
+    for (let i = 0; i < 6; i++) t.meta.applyMatch(win());
+    expect(t.meta.mastery.tier('vex')).toBeGreaterThanOrEqual(1);
+    expect(t.meta.mastery.claim('vex', 0)).toBeTruthy();
+    expect(t.meta.mastery.claim('vex', 0)).toBeNull();
+  });
+  it('club: join, earn points, claim chest', () => {
+    const t = mkMeta();
+    const offer = t.meta.club.offers()[0];
+    t.meta.club.join(offer);
+    expect(t.meta.state.club?.name).toBe(offer.name);
+    for (let i = 0; i < 30; i++) t.meta.applyMatch(win());
+    expect(t.meta.club.total()).toBeGreaterThanOrEqual(500);
+    expect(t.meta.club.claim(0)).toBeTruthy();
+    expect(t.meta.club.league().some((r) => r.me)).toBe(true);
+  });
+  it('ladder ranks the player among simulated players', () => {
+    const t = mkMeta();
+    const l = t.meta.ladder.rows(50);
+    expect(l.top.length).toBe(50);
+    expect(l.me.me).toBe(true);
+    expect(l.total).toBe(301);
+  });
+  it('beast arena battles are deterministic and progress floors', () => {
+    const t = mkMeta();
+    const s = t.meta.state;
+    s.beasts.push({ uid: 'strong', speciesId: 'voltaris', level: 30, xp: 0, stage: 3, mutation: 'none', obtainedAt: 0, favorite: false, breedReadyAt: 0 });
+    const a = t.meta.battle.simulate(['strong'], 1, 5)!;
+    const b = t.meta.battle.simulate(['strong'], 1, 5)!;
+    expect(JSON.stringify(a.events)).toBe(JSON.stringify(b.events));
+    expect(a.winner).toBe(0);
+    const r = t.meta.battle.fight(['strong'])!;
+    expect(r.result.winner).toBe(0);
+    expect(s.battle.floor).toBe(2);
+    expect(r.items.length).toBeGreaterThan(0);
+  });
+  it('v3 saves migrate to v4 with welcome star drops', () => {
+    const v3: any = { version: 3, starDrops: 0, jackers: { vex: { unlocked: true, level: 4 } } };
+    const st = sanitize(migrate(v3));
+    expect(st.starDrops).toBe(3);
+    expect(st.jackers.vex.mastery).toBe(0);
+    expect(st.jackers.riptide.unlocked).toBe(false);
   });
 });

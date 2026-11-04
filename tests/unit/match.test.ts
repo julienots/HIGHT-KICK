@@ -34,7 +34,7 @@ describe('match simulation (headless bots)', () => {
     console.log('rush', w.score, w.endReason, w.time.toFixed(0), 'kills', totalKills);
   });
 
-  for (const m of MODES) {
+  for (const m of MODES.filter((x) => x.id !== 'training')) {
     it(`mode ${m.id} terminates on every arena`, () => {
       for (const a of ARENAS) {
         const { w } = run(m.id, a.id, JACKERS[(a.num * 3) % JACKERS.length].id, 'hard', a.num);
@@ -93,5 +93,43 @@ describe('match simulation (headless bots)', () => {
       if (w.winner === 1) masterWins++;
     }
     expect(masterWins).toBeGreaterThanOrEqual(4);
+  });
+});
+
+describe('Renaissance 2.0 systems', () => {
+  const P = (extra: any = {}) => ({ jackerId: 'vex', level: 18, skin: 'vex_classic', name: 'T', gadget: 0, starPower: 0, special: 0, useGadget: true, useStarPower: true, useSpecial: true, useHyper: true, ...extra }) as any;
+  it('hypercharge charges from damage and boosts the Jacker', () => {
+    const w = new World({ mode: 'beast_rush', arena: 'sky_jungle', difficulty: 'normal', seed: 9, allBots: true, player: P() });
+    let used = false;
+    for (let i = 0; i < 30 * 150 && w.state !== 'ended'; i++) {
+      w.update(1 / 30);
+      if (w.fx.some((f) => f.t === 'hyper')) used = true;
+    }
+    expect(w.player!.canHyper).toBe(true);
+    expect(used).toBe(true);
+  });
+  it('companion pet follows and fights for its owner', () => {
+    const w = new World({ mode: 'beast_rush', arena: 'beast_valley', difficulty: 'normal', seed: 4, allBots: true, player: P({ pet: { speciesId: 'cindrake', stage: 2, mutation: 'none', hp: 3000, atk: 300 } }) });
+    const pet = w.wilds.find((x) => x.owner === w.player)!;
+    expect(pet).toBeTruthy();
+    expect(w.wilds.filter((x) => x.owner).length).toBe(2); // mirrored enemy pet
+    const dmg0 = w.player!.stats.damage;
+    let maxDist = 0;
+    for (let i = 0; i < 30 * 90; i++) {
+      w.update(1 / 30);
+      if (w.player!.alive && pet.alive) maxDist = Math.max(maxDist, Math.hypot(pet.x - w.player!.x, pet.z - w.player!.z));
+    }
+    expect(maxDist).toBeLessThan(20);
+    expect(w.player!.stats.damage).toBeGreaterThan(dmg0);
+  });
+  it('training spawns dummies that respawn', () => {
+    const w = new World({ mode: 'training', arena: 'sky_jungle', difficulty: 'normal', seed: 2, allBots: true, player: P() });
+    expect(w.units.length).toBe(1);
+    expect(w.wilds.filter((x) => x.dummy).length).toBe(5);
+    const d = w.wilds.find((x) => x.dummy)!;
+    w.state = 'playing';
+    w.kill(d, w.player);
+    for (let i = 0; i < 30 * 4; i++) w.update(1 / 30);
+    expect(w.wilds.filter((x) => x.dummy && x.alive).length).toBe(5);
   });
 });

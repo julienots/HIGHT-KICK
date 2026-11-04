@@ -8,6 +8,13 @@ import { dayIndex } from '../core/time';
 import type { Ctx, GrantedItem } from './ctx';
 import type { RewardSystem } from './rewards';
 
+/** 7-day login calendar rewards (day 1..7, then loops). */
+export function dailyReward(d: number): Reward[] {
+  if (d === 7) return [{ type: 'chest', chestId: 'gold' }, { type: 'gems', amount: 10 }];
+  if (d === 5) return [{ type: 'egg', rarity: 'rare' }, { type: 'coins', amount: 120 }];
+  return [{ type: 'coins', amount: 40 + d * 20 }, ...(d % 3 === 0 ? [{ type: 'energy', amount: 15 } as Reward] : [])];
+}
+
 export interface TrophyRoadStep {
   trophies: number;
   reward: Reward;
@@ -289,8 +296,8 @@ export class ProgressionSystem {
       s.streak = s.lastDay === today - 1 ? s.streak + 1 : 1;
       s.lastDay = today;
       const d = ((s.streak - 1) % 7) + 1;
-      const rewards: Reward[] = d === 7 ? [{ type: 'chest', chestId: 'gold' }, { type: 'gems', amount: 10 }] : [{ type: 'coins', amount: 40 + d * 20 }, ...(d % 3 === 0 ? [{ type: 'energy', amount: 15 } as Reward] : [])];
-      gift = this.rewards.grant(rewards, 'daily', true);
+      gift = this.rewards.grant(dailyReward(d), 'daily', true);
+      if (d === 4 || d === 7) s.starDrops += 1;
       this.addStat('playDays');
     }
     const season = seasonInfo(this.c.now());

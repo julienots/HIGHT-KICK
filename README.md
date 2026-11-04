@@ -1,5 +1,7 @@
 # 🐾🧲 BEAST GRAVITY — by SUPERESSENCE
 
+> **v2.0 · RENAISSANCE** — 30 Jackers, 80 créatures, 15 arènes, 10 modes (CORE KING, NEST SIEGE, Entraînement), ÉVEIL, compagnons en match, BEAST ARENA (tour de 30 étages), Comètes, Maîtrise, Clubs, Classement, calendrier de connexion.
+
 **3v3 Action Arena + Monster Collection + Gravity Combat** — jeu mobile 3D / 2.5D, **100 % jouable hors ligne**.
 
 > Lance le jeu → choisis ton Jacker → joue immédiatement → récupère des créatures → gagne des récompenses → améliore ton personnage → débloque un skin → rejoue.
@@ -60,19 +62,19 @@ Icônes et splash Android : `node scripts/gen-android-assets.mjs` (générés de
 
 | | |
 |---|---|
-| **Jackers** | 20 (VEX, BOULDER, OONA, AERO, VOLT + 15 originaux), 7 rôles, attaque / compétence / super / passif, niveaux 1→20, 2 gadgets, 2 star powers, 2 pouvoirs spéciaux, 4 skins chacun (80 skins) |
-| **Créatures** | 50 espèces, 10 éléments (forces/faiblesses), 7 raretés, 5 stades (BABY→TITAN), mutations, nourriture préférée, élevage |
-| **Arènes** | 10 arènes avec mécanique propre (buissons, éruptions, glace, portails, créatures sauvages, gravité faible, tempête, cristaux, plateformes, pièges) |
-| **Modes** | BEAST RUSH, GRAVITY WAR, BEAST HUNT, BOSS RAID, SURVIVAL, DUEL, CHAOS + campagne 30 niveaux + événements tournants |
+| **Jackers** | 30 (VEX, BOULDER, OONA, AERO, VOLT + 25 originaux), 7 rôles, attaque / compétence / super / passif, niveaux 1→20, 2 gadgets, 2 star powers, 2 pouvoirs spéciaux, 4 skins chacun (120 skins), ÉVEIL au niveau 16, Maîtrise (9 paliers) |
+| **Créatures** | 80 espèces, 10 éléments (forces/faiblesses), 7 raretés, 5 stades (BABY→TITAN), mutations, nourriture préférée, élevage, compagnon en match, BEAST ARENA (combats auto, tour de 30 étages) |
+| **Arènes** | 15 arènes avec mécanique propre (buissons, éruptions, glace, portails, créatures sauvages, gravité faible, tempête, cristaux, plateformes, pièges) |
+| **Modes** | BEAST RUSH, GRAVITY WAR, BEAST HUNT, BOSS RAID, SURVIVAL, DUEL, CHAOS, CORE KING, NEST SIEGE, ENTRAÎNEMENT + campagne 45 niveaux + événements tournants |
 | **Gravité** | Gravity Core (événements de match) + Gravity Nodes : LOW, HEAVY, REVERSE, ORBIT, VORTEX, REPULSION |
 | **Œufs** | EGG → HATCHLING → BEAST → ELITE → TITAN (1/2/4/7/12 pts) : livrer vite ou attendre l'évolution ? |
 | **IA** | EASY / NORMAL / HARD / EXPERT / MASTER : réaction, visée, anticipation, esquive, usage des Nodes, coordination, stratégie d'œuf |
-| **Méta** | niveau joueur, trophées + route des trophées, rangs Bronze→Legend, coffres (6), boutique (7 sections), SUPER PASS 50 paliers free/premium, missions (6 catégories), 73 succès, saisons |
+| **Méta** | niveau joueur, trophées + route des trophées, rangs Bronze→Legend, coffres (6), boutique (7 sections), SUPER PASS 50 paliers free/premium, missions (6 catégories), 73 succès, saisons, Comètes, Clubs hors ligne, Classement, calendrier 7 jours |
 
 ## 🕹️ Contrôles
 
-Mobile : joystick flottant à gauche · bouton rouge = attaque (toucher = visée auto, glisser = visée manuelle) · bleu = compétence · jaune = SUPER · vert = gadget · violet = Gravity Node.
-Clavier : ZQSD/WASD · Espace/clic = attaque · E compétence · Q/R/clic droit super · F interagir · G gadget · 1-4 emotes · Échap pause.
+Mobile : joystick flottant à gauche · bouton rouge = attaque (toucher = visée auto, glisser = visée manuelle) · bleu = compétence · jaune = SUPER · vert = gadget · violet = Gravity Node · cœur violet = ÉVEIL.
+Clavier : ZQSD/WASD · Espace/clic = attaque · E compétence · Q/R/clic droit super · F interagir · G gadget · H ÉVEIL · 1-4 emotes · Échap pause.
 
 ---
 

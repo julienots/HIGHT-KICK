@@ -177,12 +177,13 @@ export class World {
   makeUnit(team: number, jackerId: string, level: number, isBot: boolean, name: string, skin?: string, load?: { gadget: 0 | 1; starPower: 0 | 1; special: 0 | 1; useStarPower: boolean; useGadget: boolean; useSpecial: boolean }, bonus?: { hp: number; dmg: number }) {
     const def = getJacker(jackerId);
     const passives = [def.passive];
-    const lv = load ?? { gadget: 0, starPower: 0, special: 0, useGadget: level >= 7, useStarPower: level >= 10, useSpecial: level >= 14 };
+    const lv: { gadget: 0 | 1; starPower: 0 | 1; special: 0 | 1; useStarPower: boolean; useGadget: boolean; useSpecial: boolean; useHyper?: boolean } = load ?? { gadget: (this.rng.chance(0.5) ? 1 : 0) as 0 | 1, starPower: (this.rng.chance(0.5) ? 1 : 0) as 0 | 1, special: 0, useGadget: level >= 7, useStarPower: level >= 10, useSpecial: level >= 14, useHyper: level >= 16 };
     if (lv.useStarPower) passives.push(def.starPowers[lv.starPower]);
     const gadget = lv.useGadget ? def.gadgets[lv.gadget] : null;
     const special = lv.useSpecial ? def.specials[lv.special] : null;
     const u = new Unit(this.id(), team, def, level, skin ?? defaultSkin(jackerId), name, isBot, passives, gadget, special, bonus);
     if (this.modifiers.has('bigHeads')) u.radius *= 1.1;
+    u.canHyper = !!lv.useHyper;
     this.units.push(u);
     return u;
   }
@@ -206,7 +207,7 @@ export class World {
       return this.rng.chance(0.4) ? this.rng.pick(skins).id : defaultSkin(jid);
     };
     const names = this.rng.shuffle(BOT_NAMES.slice());
-    const teams = cfg.mode === 'boss_raid' ? [0] : [0, 1];
+    const teams = cfg.mode === 'boss_raid' || cfg.mode === 'training' ? [0] : [0, 1];
     for (const team of teams) {
       for (let i = 0; i < size; i++) {
         let u: Unit;
@@ -225,6 +226,30 @@ export class World {
         if (u.isBot) u.brain = new BotBrain(this, u, botProfile(team === 1 || cfg.mode === 'boss_raid' ? cfg.difficulty : allyDifficulty(cfg.difficulty)));
       }
     }
+    // companion creatures: the player's pet, mirrored by one enemy pet so teams stay fair
+    const pet = p.pet;
+    if (pet && this.player && cfg.mode !== 'training') {
+      this.spawnPet(this.player, pet.speciesId, pet.stage, pet.mutation, pet.hp, pet.atk);
+      const rival = this.units.find((u) => u.team === 1);
+      if (rival) {
+        const sp = getBeast(pet.speciesId);
+        const pool = BEASTS.filter((b) => b.rarity === sp.rarity && b.id !== sp.id);
+        this.spawnPet(rival, (pool.length ? this.rng.pick(pool) : sp).id, pet.stage, 'none', pet.hp, pet.atk);
+      }
+    } else if (pet && this.player) this.spawnPet(this.player, pet.speciesId, pet.stage, pet.mutation, pet.hp, pet.atk);
+  }
+
+  spawnPet(owner: Unit, speciesId: string, stage: number, mutation: string, hp: number, atk: number) {
+    const w = this.spawnWild(speciesId, owner.x + 1.2, owner.z + 0.8, { team: owner.team });
+    w.owner = owner;
+    w.stage = stage;
+    w.mutation = mutation;
+    w.hp = w.maxHp = Math.round(hp);
+    w.atk = Math.round(atk);
+    w.size = 0.55 + stage * 0.1;
+    w.radius = 0.5 + stage * 0.05;
+    w.speed = owner.baseSpeed * 1.05;
+    return w;
   }
 
   // ------------------------------------------------------------------ queries
@@ -282,7 +307,7 @@ export class World {
     let dmg = amount;
     let crit = false;
     if (src) {
-      dmg *= src.dmgMult * src.buffDmg;
+      dmg *= src.dmgMult * src.buffDmg * (src.hyperT > 0 ? 1.25 : 1);
       if (o.element) {
         const tel = target.kind === 'turret' ? null : (target as Unit | Wild).element;
         if (tel) dmg *= elementMultiplier(o.element, tel);
@@ -298,6 +323,7 @@ export class World {
       src.revealT = Math.max(src.revealT, 0.8);
     }
     if (target.kind === 'unit') {
+      if (target.hyperT > 0) dmg *= 0.8;
       const dr = target.hasPassive('damageReduction');
       if (dr) dmg *= 1 - dr.value;
       if (target.carrying && target.carrying.phase >= 4) dmg *= 0.75;
@@ -320,6 +346,7 @@ export class World {
         target.lastDamager = src;
       }
       target.hitFlash = 0.12;
+      (target as any).hurtT = this.time;
     }
     dmg = Math.max(0, dmg);
     target.hp -= dmg;
@@ -335,6 +362,7 @@ export class World {
         if (this.modifiers.has('doubleSuper')) rate *= 2;
         if (target.kind === 'turret') rate *= 0.3;
         src.superCharge = Math.min(1, src.superCharge + dmg * rate * (o.isAbility ? 0.5 : 1));
+        if (src.canHyper && src.hyperT <= 0) src.hyper = Math.min(1, src.hyper + dmg * rate * 0.32);
       }
       if (o.burn) {
         const tu = target as any;
@@ -403,6 +431,15 @@ export class World {
       w.deadT = 1.2;
       const killer = src ?? w.lastDamager;
       this.emit({ t: 'wildDeath', id: w.id, x: w.x, z: w.z, rarity: w.rarityIdx, team: killer?.team ?? -1 });
+      if (w.owner) {
+        w.deadT = 1e9; // companion: waits for its owner's respawn
+        return;
+      }
+      if (w.dummy) {
+        w.deadT = 0.5;
+        this.rules.onWildKill(w, killer);
+        return;
+      }
       if (!w.isBoss) {
         this.pickups.push({ id: this.id(), x: w.x, z: w.z, kind: this.rng.chance(0.5) ? 'heal' : 'super', t: 12 });
       }
@@ -699,6 +736,7 @@ export class World {
       if (u.slowT <= 0) u.slowAmt = 0;
     }
     if (u.stunT > 0) u.stunT -= dt;
+    if (u.hyperT > 0) u.hyperT -= dt;
     if (u.buffT > 0) {
       u.buffT -= dt;
       if (u.buffT <= 0) {
@@ -755,6 +793,7 @@ export class World {
     if (cell === C.Slow && !u.airborne && this.arena.slowKind !== 'ice') speed *= 0.65;
     if (u.heavy) speed *= 0.5;
     if (this.globalLowG) speed *= 1.1;
+    if (u.hyperT > 0) speed *= 1.25;
     const onIce = cell === C.Slow && this.arena.slowKind === 'ice' && !u.airborne;
     let mx = u.input.mx,
       mz = u.input.mz;
@@ -920,6 +959,14 @@ export class World {
     u.ammo = u.def.attack.ammo;
     u.dash = null;
     this.emit({ t: 'respawn', u: u.id });
+    for (const w of this.wilds)
+      if (w.owner === u) {
+        w.alive = true;
+        w.hp = w.maxHp;
+        w.deadT = 0;
+        w.x = u.x + 1;
+        w.z = u.z + 0.6;
+      }
     if (u.brain) u.brain.reset?.();
   }
 
@@ -1297,7 +1344,11 @@ export class World {
         w.y += (2.5 - w.y) * 4 * dt;
         continue;
       } else if (w.y > 0) w.y = Math.max(0, w.y - 12 * dt);
-      if (w.isBoss) {
+      if (w.dummy) {
+        if (this.time - (w as any).hurtT > 2) w.hp = Math.min(w.maxHp, w.hp + w.maxHp * 0.2 * dt);
+      } else if (w.owner) {
+        petUpdate(this, w, dt);
+      } else if (w.isBoss) {
         bossUpdate(this, w, dt);
       } else {
         // pick target: aggro or nearest unit in 6
@@ -1341,7 +1392,7 @@ export class World {
       const t = this.grid.at(w.x, w.z);
       if (this.grid.isPit(t) && !this.platformAt(w.x, w.z) && !w.isBoss) this.kill(w, w.lastDamager);
     }
-    this.wilds = this.wilds.filter((w) => w.alive || w.deadT > 0);
+    this.wilds = this.wilds.filter((w) => w.alive || w.deadT > 0 || !!w.owner);
   }
 
   private updateTurrets(dt: number) {
@@ -1487,6 +1538,45 @@ function dampAngleSim(a: number, b: number, lambda: number, dt: number) {
 export function allyDifficulty(d: string) {
   // allies are slightly weaker than enemies on easy so beginners carry, equal otherwise
   return (d === 'easy' ? 'normal' : d) as any;
+}
+
+/** Companion creature: stays near its Jacker and bites what it attacks. */
+function petUpdate(world: World, p: Wild, dt: number) {
+  const o = p.owner!;
+  const spd = p.speed * (p.slowT > 0 ? 0.6 : 1);
+  const dOwner = Math.hypot(o.x - p.x, o.z - p.z);
+  let tgt: Target | null = null;
+  if (o.alive && dOwner < 9) tgt = world.nearestEnemy(p, 6.5, true, (t) => (t.kind === 'unit' && t.lastDamager === o ? -3 : 0));
+  if (!o.alive) {
+    // owner K.O.: wait at the base
+    const b = world.baseCenter[p.team];
+    const n = norm(b.x - p.x, b.z - p.z);
+    if (Math.hypot(b.x - p.x, b.z - p.z) > 2) world.move(p, n.x * spd * dt, n.z * spd * dt);
+    return;
+  }
+  if (tgt) {
+    const d = dist(p, tgt);
+    const n = norm(tgt.x - p.x, tgt.z - p.z);
+    p.facing = angleOf(n.x, n.z);
+    if (d > p.radius + 1.1) world.move(p, n.x * spd * dt, n.z * spd * dt);
+    p.attackCd -= dt;
+    if (d < p.radius + 1.5 && p.attackCd <= 0) {
+      p.attackCd = 1.0;
+      p.action = 'attack';
+      p.actionT = 0;
+      p.actionId++;
+      world.damage(o, tgt, p.atk / Math.max(0.1, o.dmgMult), { element: p.element, knock: 2, knockX: n.x, knockZ: n.z, color: '#ffd23a', isAbility: true });
+    }
+  } else if (dOwner > 2.2) {
+    const n = norm(o.x - p.x, o.z - p.z);
+    p.facing = angleOf(n.x, n.z);
+    const boost = dOwner > 6 ? 1.5 : 1;
+    world.move(p, n.x * spd * boost * dt, n.z * spd * boost * dt);
+    if (dOwner > 16) {
+      p.x = o.x + 1;
+      p.z = o.z + 1;
+    }
+  }
 }
 
 /** Boss behaviour for BOSS RAID. */

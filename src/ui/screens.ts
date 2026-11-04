@@ -9,6 +9,7 @@ import { QuestsScreen } from './quests';
 import { EventsScreen } from './events';
 import { ProfileScreen } from './profile';
 import { SettingsScreen } from './settings';
+import { ClubScreen } from './club';
 
 export function registerScreens(app: App) {
   app.register('home', HomeScreen);
@@ -22,4 +23,5 @@ export function registerScreens(app: App) {
   app.register('events', EventsScreen);
   app.register('profile', ProfileScreen);
   app.register('settings', SettingsScreen);
+  app.register('club', ClubScreen);
 }

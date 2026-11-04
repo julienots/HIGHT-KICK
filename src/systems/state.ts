@@ -7,7 +7,7 @@ import type { Rarity } from '../data/rarities';
 import { RARITIES } from '../data/rarities';
 import type { Difficulty } from '../data/modes';
 
-export const SAVE_VERSION = 3;
+export const SAVE_VERSION = 4;
 
 export interface JackerProgress {
   unlocked: boolean;
@@ -22,6 +22,9 @@ export interface JackerProgress {
   special: 0 | 1;
   matches: number;
   wins: number;
+  /** mastery points (Renaissance 2.0) */
+  mastery: number;
+  masteryClaimed: number[];
 }
 
 export type Mutation = 'none' | 'shiny' | 'giant' | 'shadow' | 'prism';
@@ -120,10 +123,34 @@ export interface PlayerState {
   streak: number;
   tutorialDone: boolean;
   uidCounter: number;
+  /** --- 2.0 RENAISSANCE --- */
+  starDrops: number;
+  starDropDay: { day: number; earned: number };
+  club: ClubState | null;
+  battle: { floor: number; best: number; team: string[]; winsToday: number; day: number };
+  seenVersion: string;
+}
+
+export interface ClubMember {
+  name: string;
+  jacker: string;
+  trophies: number;
+  role: 'président' | 'vice' | 'senior' | 'membre';
+}
+export interface ClubState {
+  name: string;
+  badge: string;
+  color: string;
+  seed: number;
+  members: ClubMember[];
+  week: number;
+  weekPoints: number;
+  claimed: number[];
+  joinedAt: number;
 }
 
 export function newJackerProgress(id: string, unlocked: boolean): JackerProgress {
-  return { unlocked, level: 1, shards: 0, trophies: 0, highest: 0, skin: defaultSkin(id), skins: [defaultSkin(id)], gadget: 0, starPower: 0, special: 0, matches: 0, wins: 0 };
+  return { unlocked, level: 1, shards: 0, trophies: 0, highest: 0, skin: defaultSkin(id), skins: [defaultSkin(id)], gadget: 0, starPower: 0, special: 0, matches: 0, wins: 0, mastery: 0, masteryClaimed: [] };
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -176,6 +203,11 @@ export function defaultState(t = Date.now()): PlayerState {
     streak: 0,
     tutorialDone: false,
     uidCounter: 10,
+    starDrops: 1,
+    starDropDay: { day: -1, earned: 0 },
+    club: null,
+    battle: { floor: 1, best: 0, team: [], winsToday: 0, day: -1 },
+    seenVersion: '',
   };
 }
 
@@ -233,6 +265,8 @@ export function sanitize(raw: any): PlayerState {
       special: r.special === 1 ? 1 : 0,
       matches: num(r.matches, 0),
       wins: num(r.wins, 0),
+      mastery: num(r.mastery, 0),
+      masteryClaimed: arr(r.masteryClaimed, isNum),
     };
   }
   if (!s.jackers[s.profile.selectedJacker]?.unlocked) s.profile.selectedJacker = 'vex';
@@ -304,6 +338,26 @@ export function sanitize(raw: any): PlayerState {
   s.streak = num(raw.streak, 0);
   s.tutorialDone = !!raw.tutorialDone;
   s.uidCounter = num(raw.uidCounter, 10);
+  s.starDrops = Math.round(num(raw.starDrops, d.starDrops, 0, 999));
+  s.starDropDay = { day: num(raw.starDropDay?.day, -1, -1), earned: num(raw.starDropDay?.earned, 0) };
+  const cl = raw.club;
+  s.club =
+    cl && isStr(cl.name) && Array.isArray(cl.members)
+      ? {
+          name: cl.name.slice(0, 20),
+          badge: isStr(cl.badge) ? cl.badge : '🛡️',
+          color: isStr(cl.color) ? cl.color : '#2bb8ff',
+          seed: num(cl.seed, 1),
+          members: cl.members.filter((m: any) => m && isStr(m.name)).map((m: any) => ({ name: m.name, jacker: isStr(m.jacker) ? m.jacker : 'vex', trophies: num(m.trophies, 0), role: ['président', 'vice', 'senior', 'membre'].includes(m.role) ? m.role : 'membre' })),
+          week: num(cl.week, 0),
+          weekPoints: num(cl.weekPoints, 0),
+          claimed: arr(cl.claimed, isNum),
+          joinedAt: num(cl.joinedAt, Date.now()),
+        }
+      : null;
+  const b = raw.battle ?? {};
+  s.battle = { floor: Math.round(num(b.floor, 1, 1, 999)), best: num(b.best, 0), team: arr(b.team, isStr), winsToday: num(b.winsToday, 0), day: num(b.day, -1, -1) };
+  s.seenVersion = isStr(raw.seenVersion) ? raw.seenVersion : '';
   return s;
 }
 
@@ -324,6 +378,11 @@ export function migrate(raw: any): any {
     // v2 had no farm/seeds
     raw.seeds = raw.seeds ?? { berry: 3 };
     v = 3;
+  }
+  if (v < 4) {
+    // 2.0 Renaissance: every existing player gets a welcome Star Drop bundle
+    raw.starDrops = (raw.starDrops ?? 0) + 3;
+    v = 4;
   }
   raw.version = v;
   return raw;

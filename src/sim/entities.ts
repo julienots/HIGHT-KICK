@@ -14,6 +14,7 @@ export interface UnitInput {
   super: boolean;
   gadget: boolean;
   interact: boolean;
+  hyper?: boolean;
   emote?: string;
 }
 
@@ -72,6 +73,10 @@ export class Unit {
   skillCd = 0;
   skillCdMax: number;
   superCharge = 0;
+  /** HYPERCHARGE meter (unlocked at level 16) */
+  hyper = 0;
+  hyperT = 0;
+  canHyper = false;
   gadgetUses = 3;
   gadgetCd = 0;
   slowT = 0;
@@ -257,6 +262,12 @@ export interface Wild {
   lastDamager: Unit | null;
   deadT: number;
   element: Element;
+  /** companion pet: follows and fights for its owner */
+  owner?: Unit;
+  stage?: number;
+  mutation?: string;
+  /** training dummy (no AI) */
+  dummy?: boolean;
   action: string;
   actionT: number;
   actionId: number;
@@ -280,6 +291,8 @@ export interface Turret {
   decoy: boolean;
   facing: number;
   color: string;
+  /** NEST SIEGE objective */
+  nest?: boolean;
 }
 
 export interface GravityNode {
@@ -340,7 +353,7 @@ export interface MatchConfig {
   arena: string;
   difficulty: Difficulty;
   seed: number;
-  player: { jackerId: string; level: number; skin: string; name: string; gadget: 0 | 1; starPower: 0 | 1; special: 0 | 1; useStarPower: boolean; useGadget: boolean; useSpecial: boolean; bonus?: { hp: number; dmg: number } };
+  player: { jackerId: string; level: number; skin: string; name: string; gadget: 0 | 1; starPower: 0 | 1; special: 0 | 1; useStarPower: boolean; useGadget: boolean; useSpecial: boolean; useHyper?: boolean; bonus?: { hp: number; dmg: number }; pet?: { speciesId: string; stage: number; mutation: string; hp: number; atk: number } | null };
   /** override team size (otherwise from mode) */
   teamSize?: number;
   modifiers?: string[];
@@ -381,6 +394,7 @@ export type FxEvent =
   | { t: 'wildDeath'; id: number; x: number; z: number; rarity: number; team: number }
   | { t: 'capture'; zone: number; team: number }
   | { t: 'super'; u: number; name: string }
+  | { t: 'hyper'; u: number }
   | { t: 'gadget'; u: number; name: string }
   | { t: 'skill'; u: number; name: string }
   | { t: 'boss'; move: string }

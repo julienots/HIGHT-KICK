@@ -33,6 +33,7 @@ export class Hud {
   private drags = new Map<number, DragState>();
   private pending: { kind: DragState['kind']; ax: number; az: number }[] = [];
   private interactPending = false;
+  private hyperPending = false;
   private scoreA: HTMLDivElement;
   private scoreB: HTMLDivElement;
   private timerEl: HTMLDivElement;
@@ -47,6 +48,7 @@ export class Hud {
   private bSup: HTMLDivElement;
   private bGad: HTMLDivElement;
   private bInt: HTMLDivElement;
+  private bHyp: HTMLDivElement;
   private lastCount = -1;
   private aimGroup = new THREE.Group();
   private aimLine: THREE.Mesh;
@@ -96,6 +98,14 @@ export class Hud {
     this.bSup = this.actionBtn('sup', p.def.super.icon, 'super');
     this.bGad = this.actionBtn('gad', p.gadget?.icon ?? '🔒', 'gadget');
     this.bInt = h('div', { class: 'abtn int' }, '🧲');
+    this.bHyp = h('div', { class: 'abtn hyp' + (p.canHyper ? '' : ' off') }, '💜');
+    this.bHyp.appendChild(h('div', { class: 'ring' }));
+    this.bHyp.addEventListener('pointerdown', (e) => {
+      e.stopPropagation();
+      if (!p.canHyper) return;
+      this.hyperPending = true;
+      audio.sfx('click');
+    });
     this.bInt.addEventListener('pointerdown', (e) => {
       e.stopPropagation();
       this.interactPending = true;
@@ -106,7 +116,7 @@ export class Hud {
     this.bSup.appendChild(h('div', { class: 'ring' }));
     if (p.gadget) this.bGad.appendChild(h('div', { class: 'uses' }, '3'));
     else this.bGad.style.opacity = '0.3';
-    const actions = h('div', { class: 'actions' }, this.bInt, this.bGad, this.bSup, this.bSkl, this.bAtk);
+    const actions = h('div', { class: 'actions' }, this.bHyp, this.bInt, this.bGad, this.bSup, this.bSkl, this.bAtk);
     this.el.appendChild(actions);
     window.addEventListener('pointermove', this.onMove);
     window.addEventListener('pointerup', this.onUp);
@@ -273,6 +283,7 @@ export class Hud {
       if (k === 'e') this.pending.push({ kind: 'skill', ...aim() });
       if (k === 'q' || k === 'r') this.pending.push({ kind: 'super', ...aim() });
       if (k === 'g') this.pending.push({ kind: 'gadget', ax: 0, az: 0 });
+      if (k === 'h') this.hyperPending = true;
       if (k === 'f') this.interactPending = true;
       if (k === 'escape' || k === 'p') this.pause(!this.paused);
       if (['1', '2', '3', '4'].includes(k)) {
@@ -313,6 +324,10 @@ export class Hud {
       p.input.interact = true;
       this.interactPending = false;
     }
+    if (this.hyperPending) {
+      p.input.hyper = true;
+      this.hyperPending = false;
+    }
   }
 
   // ------------------------------------------------------------ per-frame UI
@@ -326,6 +341,14 @@ export class Hud {
       this.scoreA.textContent = `${w.score[0]}%`;
       this.scoreB.textContent = '👑';
       this.targetEl.textContent = 'Abattez le TITAN !';
+    } else if (mode === 'nest_siege') {
+      this.scoreA.textContent = `🪺${w.score[my]}%`;
+      this.scoreB.textContent = `🪺${w.score[1 - my]}%`;
+      this.targetEl.textContent = 'Détruis le Nid ennemi';
+    } else if (mode === 'training') {
+      this.scoreA.textContent = String(Math.round(p.stats.damage / 1000)) + 'K';
+      this.scoreB.textContent = '🎯';
+      this.targetEl.textContent = 'Dégâts infligés';
     } else if (mode === 'survival') {
       this.scoreA.textContent = `❤${w.score[my]}`;
       this.scoreB.textContent = `❤${w.score[1 - my]}`;
@@ -371,6 +394,11 @@ export class Hud {
     if (p.gadget) {
       (this.bGad.querySelector('.uses') as HTMLElement).textContent = String(p.gadgetUses);
       this.bGad.style.opacity = p.gadgetUses > 0 && p.gadgetCd <= 0 ? '1' : '0.45';
+    }
+    if (p.canHyper) {
+      (this.bHyp.querySelector('.ring') as HTMLElement).style.setProperty('--p', `${(p.hyperT > 0 ? p.hyperT / 6 : p.hyper) * 100}%`);
+      this.bHyp.classList.toggle('ready', p.hyper >= 1 && p.hyperT <= 0);
+      this.bHyp.classList.toggle('active', p.hyperT > 0);
     }
     const nearNode = w.nodes.some((n) => n.cd <= 0 && Math.hypot(n.x - p.x, n.z - p.z) < 2.2);
     this.bInt.classList.toggle('near', nearNode && p.alive);
@@ -457,7 +485,10 @@ export class Hud {
         const v = unit(e.u),
           k = unit(e.killer);
         if (v) this.feed(k ? `<b style="color:${k.team === p.team ? '#7fd0ff' : '#ff8a9a'}">${k.name}</b> 💥 <b style="color:${v.team === p.team ? '#7fd0ff' : '#ff8a9a'}">${v.name}</b>` : `💀 <b>${v.name}</b>`);
-        if (k === p) this.announce('ÉLIMINATION !', '#ffd23a');
+        if (k === p) {
+          this.announce('ÉLIMINATION !', '#ffd23a');
+          this.app.hitStop(0.09);
+        }
         break;
       }
       case 'event': {
@@ -482,6 +513,15 @@ export class Hud {
         break;
       case 'super':
         if (e.u === p.id) this.announce(p.def.super.name, '#ffd23a');
+        break;
+      case 'hyper':
+        if (e.u === p.id) {
+          this.announce('ÉVEIL !', '#d18bff', `${p.def.name} · vitesse, dégâts et SUPER boostés`);
+          this.app.hitStop(0.12);
+        } else {
+          const u = unit(e.u);
+          if (u) this.feed(`💜 <b style="color:${u.team === p.team ? '#7fd0ff' : '#ff8a9a'}">${u.name}</b> déclenche son ÉVEIL`);
+        }
         break;
       case 'collapse':
         this.feed('⚠️ L’arène s’effondre !');
@@ -525,7 +565,9 @@ export class Hud {
         h('p', { class: 'muted small', style: 'text-align:center' }, `${MODE_MAP[this.world.cfg.mode].name} · ${this.world.arena.name}`),
         btn('▶ REPRENDRE', 'green big', () => this.pause(false)),
         aimBtn,
-        btn('🏳 ABANDONNER', 'red', () => confirmModal('Abandonner ?', 'Le match comptera comme une défaite.', 'ABANDONNER', () => (this.pause(false), this.app.forfeit()), 'red')),
+        this.world.cfg.mode === 'training'
+          ? btn('🏁 QUITTER L’ENTRAÎNEMENT', 'red', () => (this.pause(false), this.world.end(0, 'training')))
+          : btn('🏳 ABANDONNER', 'red', () => confirmModal('Abandonner ?', 'Le match comptera comme une défaite.', 'ABANDONNER', () => (this.pause(false), this.app.forfeit()), 'red')),
       );
       this.pauseModal = modal(box, { onClose: () => this.pause(false) });
     } else {

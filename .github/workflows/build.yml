@@ -44,7 +44,7 @@ jobs:
       contents: write
     env:
       VERSION_CODE: ${{ github.run_number }}
-      VERSION_NAME: 0.1.${{ github.run_number }}
+      VERSION_NAME: 2.0.${{ github.run_number }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

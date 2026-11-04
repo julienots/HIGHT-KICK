@@ -81,6 +81,18 @@ export function tickAbilities(w: World, u: Unit, dt: number) {
       if (hs) for (const a of w.unitsNear(u.x, u.z, 8, (x) => x.team === u.team)) w.heal(a, a.maxHp * hs.value, u);
     }
   }
+  if (inp.hyper) {
+    inp.hyper = false;
+    if (u.canHyper && u.hyper >= 1 && u.hyperT <= 0) {
+      u.hyper = 0;
+      u.hyperT = 6;
+      u.superCharge = 1;
+      u.shield = Math.max(u.shield, u.maxHp * 0.25);
+      u.shieldT = 6;
+      act(u, 'super');
+      w.emit({ t: 'hyper', u: u.id });
+    }
+  }
   if (inp.gadget) {
     inp.gadget = false;
     if (u.gadget && u.gadgetUses > 0 && u.gadgetCd <= 0) {
