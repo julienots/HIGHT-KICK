@@ -167,7 +167,7 @@ test('2.0: comets, club, beast arena and companion work', async ({ page }) => {
   // club
   await page.evaluate(() => (window as any).__bg.go('club'));
   await page.getByText('REJOINDRE').first().click();
-  await expect(page.getByText('MEMBRES')).toBeVisible();
+  await expect(page.getByText('MEMBRES', { exact: true })).toBeVisible();
   // beast arena fight
   await page.evaluate(() => {
     const a = (window as any).__bg;
